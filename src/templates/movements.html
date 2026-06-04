@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Movimentações - BTL Cargo{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-journal-text text-primary"></i> Histórico de Movimentações</h2>
+        <span class="badge bg-dark p-2">Registro Geral de Auditoria</span>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 bg-white">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data / Hora</th>
+                            <th>Ação Executada</th>
+                            <th>Equipamento</th>
+                            <th>Nº Série (S/N)</th>
+                            <th>Responsável Anterior</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movements %}
+                        <tr>
+                            <td class="text-muted text-nowrap">
+                                <small><i class="bi bi-clock"></i> {{ mov.date.strftime('%d/%m/%Y %H:%M') }}</small>
+                            </td>
+                            <td>
+                                {% if "Liberado" in mov.action %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-box-arrow-in-down"></i> {{ mov.action }}</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">{{ mov.action }}</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ mov.equipment_model }}</strong> <small class="text-muted">(ID: {{ mov.equipment_id }})</small></td>
+                            <td><code class="text-dark">{{ mov.serial_number if mov.serial_number else 'N/A' }}</code></td>
+                            <td class="text-secondary small">{{ mov.previous_user if mov.previous_user else '---' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Nenhuma movimentação registrada no histórico até o momento.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

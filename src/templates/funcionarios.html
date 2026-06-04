@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+
+{% block title %}Funcionários - Gestão{% endblock %}
+
+{% block content %}
+<div>
+    <h2><i class="bi bi-people"></i> Gestão de Funcionários</h2>
+</div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex gap-2">
+        <form action="{{ url_for('importar_excel_funcionarios') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center border p-1 rounded bg-light">
+            <input type="file" name="file" class="form-control form-control-sm me-2" style="max-width: 220px;" accept=".xlsx, .xls" required>
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-file-earmark-excel"></i> Importar Excel
+            </button>
+        </form>
+
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#novoFuncModal">
+            <i class="bi bi-person-plus"></i> Adicionar Funcionário
+        </button>
+
+        <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#novoDeptoModal">
+                <i class="bi bi-building-plus"></i> Novo Departamento
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#novoEquipComumModal">
+                <i class="bi bi-box-seam-fill"></i> Novo Equipamento Comum
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SISTEMA DE FILTROS POR BOTÃO -->
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <a href="{{ url_for('funcionarios', status='Active') }}" 
+           class="btn btn-outline-primary {% if current_filter == 'Active' %}active{% endif %}">
+            <i class="bi bi-person-check"></i> Ativos
+        </a>
+        <a href="{{ url_for('funcionarios', status='Terminated') }}" 
+           class="btn btn-outline-danger {% if current_filter == 'Terminated' %}active{% endif %}">
+            <i class="bi bi-person-x"></i> Desligados
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Nome</th>
+                    <th>Departamento</th>
+                    <th>Equipamentos</th>
+                    <th>Termo</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for func in funcionarios %}
+<tr class="{% if func.status == 'Terminated' %}table-danger text-muted{% endif %}">
+    <td>
+        <strong>{{ func.name }}</strong> 
+        {% if func.status == 'Terminated' %}<span class="badge bg-danger">Desligado</span>{% endif %}
+    </td>
+    <td>{{ func.department.name if func.department else "Sem setor" }}</td>
+    <td>
+        {% for equip in func.equipments %}
+            <span class="badge bg-secondary">{{ equip.item_type }}</span>
+        {% else %}
+            <span class="text-muted small">Nenhum</span>
+        {% endfor %}
+    </td>
+    <td>
+        <!-- Mostra a contagem de termos -->
+        <span class="badge bg-info text-dark"><i class="bi bi-file-earmark-text"></i> {{ func.documents|length }} Termo(s)</span>
+    </td>
+    <td class="text-end">
+        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal{{func.id}}">
+            <i class="bi bi-pencil-square"></i> Detalhes / Editar
+        </button>
+    </td>
+</tr>
+
+<!-- MODAL DE EDIÇÃO ATUALIZADO -->
+<div class="modal fade" id="editModal{{func.id}}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">Detalhes: {{ func.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <!-- FORMULÁRIO PRINCIPAL: EDIÇÃO -->
+            <form action="{{ url_for('editar_funcionario', id=func.id) }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Nome Completo</label>
+                            <input type="text" name="name" class="form-control" value="{{ func.name }}" {% if func.status == 'Terminated' %}disabled{% endif %} required>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <!-- SEÇÃO DE DOCUMENTOS -->
+                    <h6><i class="bi bi-folder-open"></i> Histórico de Termos de Responsabilidade</h6>
+                    <div class="list-group mb-3">
+                        {% for doc in func.documents %}
+                            <a href="{{ url_for('visualizar_termo', filename=doc.filename) }}" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-file-earmark-pdf text-danger"></i> {{ doc.description }}
+                                </div>
+                                <small class="text-muted">Enviado em: {{ doc.upload_date.strftime('%d/%m/%Y') }}</small>
+                            </a>
+
+                        {% else %}
+                            <div class="text-muted small p-2 border rounded bg-light">Nenhum termo anexado ainda.</div>
+                        {% endfor %}
+                    </div>
+
+                    {% if func.status == 'Active' %}
+                    <!-- FORMULÁRIO PARA ADICIONAR NOVO TERMO -->
+                    <div class="card p-3 bg-light mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label small">Descrição do Termo</label>
+                                <input type="text" name="desc_termo" class="form-control form-control-sm" placeholder="Ex: Termo Celular Samsung">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">Upload de Novo Termo</label>
+                                <input type="file" name="termo" class="form-control form-control-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6>Atribuir Novo Equipamento</h6>
+                    <div class="mb-3">
+                        <select name="equipamento_id" class="form-select">
+                            <option value="">-- Selecione um item do estoque disponível --</option>
+                            {% for eq_livre in equipamentos_livres %}
+                                <option value="{{ eq_livre.id }}">{{ eq_livre.item_type }} - {{ eq_livre.model }} (S/N: {{ eq_livre.serial_number }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><i class="bi bi-laptop"></i> Equipamentos Atribuídos</label>
+                        <ul class="list-group">
+                            {% for equip in func.equipments %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-secondary text-uppercase me-2">{{ equip.item_type }}</span>
+                                        <strong>{{ equip.model }}</strong> 
+                                        {% if equip.serial_number %}
+                                            <small class="text-muted">(S/N: {{ equip.serial_number }})</small>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <button type="submit" 
+                                            formaction="{{ url_for('desvincular_equipamento', id=equip.id, origem='funcionarios') }}" 
+                                            formmethod="POST"
+                                            class="btn btn-sm btn-link text-danger p-0 border-0" 
+                                            onclick="return confirm('Tem certeza que deseja retirar o equipamento {{ equip.model }} deste funcionário?')"
+                                            data-bs-toggle="tooltip" 
+                                            data-bs-placement="top" 
+                                            title="Liberar equipamento">
+                                        <i class="bi bi-x-circle fs-5"></i>
+                                    </button>
+                                </li>
+                            {% else %}
+                                <li class="list-group-item text-muted italic small text-center py-3">
+                                    Nenhum equipamento vinculado a este colaborador.
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="modal-footer d-flex justify-content-between">
+                    <div class="modal-footer d-flex justify-content-between">
+                        <div>
+                            {% if func.status == 'Active' %}
+                                <button type="submit" form="formDesligar{{func.id}}" class="btn btn-danger" onclick="return confirm('...')">
+                                    <i class="bi bi-person-x"></i> Registrar Desligamento
+                                </button>
+                                
+                                <a href="{{ url_for('gerar_pdf_funcionario', id=func.id) }}" target="_blank" class="btn btn-warning text-dark fw-bold">
+                                    <i class="bi bi-file-earmark-pdf"></i> Emitir Termo PDF
+                                </a>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            {% if func.status == 'Active' %}
+                                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </form> <!-- Fim do Form de Edição -->
+
+            <!-- FORMULÁRIO INVISÍVEL MUDADO PARA FORA DO FORM DE EDIÇÃO -->
+            <form id="formDesligar{{func.id}}" action="{{ url_for('desligar_funcionario', id=func.id) }}" method="POST" style="display: none;"></form>
+
+        </div>
+    </div>
+</div>
+{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="novoDeptoModal" tabindex="-1" aria-labelledby="novoDeptoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('novo_departamento') }}" method="POST">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="novoDeptoModalLabel"><i class="bi bi-building"></i> Cadastrar Novo Setor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="depto_name" class="form-label fw-bold">Nome do Departamento</label>
+                        <input type="text" class="form-control" id="depto_name" name="name" placeholder="Ex: Logística, RH, Comercial" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Setor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="novoEquipComumModal" tabindex="-1" aria-labelledby="novoEquipComumModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('novo_equipamento_comum') }}" method="POST">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title" id="novoEquipComumModalLabel"><i class="bi bi-pc-display-horizontal"></i> Equipamento de Uso Comum</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2">
+                        <small><i class="bi bi-info-circle"></i> Este equipamento ficará retido para uso geral do setor, sem vínculo com CPF específico.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Departamento Responsável</label>
+                        <select class="form-select" name="department_id" required>
+                            <option value="" selected disabled>Selecione o setor...</option>
+                            {% for depto in departamentos %}
+                                <option value="{{ depto.id }}">{{ depto.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tipo de Item</label>
+                        <input type="text" class="form-control" name="item_type" placeholder="Ex: Impressora, Computador, TV" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Modelo</label>
+                        <input type="text" class="form-control" name="model" placeholder="Ex: Zebra ZD220 / Dell OptiPlex" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Número de Série (S/N)</label>
+                        <input type="text" class="form-control" name="serial_number" placeholder="Opcional">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Atrelar ao Setor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Funcionário -->
+<div class="modal fade" id="novoFuncModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('novo_funcionario') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Novo Registro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">CPF</label>
+                        <input type="text" name="cpf" class="form-control" placeholder="000.000.000-00" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Departamento</label>
+                        <select name="department" class="form-select">
+                            <option value="Administrativo">Administrativo</option>
+                            <option value="Operacional">Operacional</option>
+                            <option value="Comercial">Vendas</option>
+                            <option value="T.I">T.I</option>
+                            <option value="Cross">Cross</option>
+                            <option value="Financeiro">Financeiro</option>
+                            <option value="RH">RH</option>
+                            <option value="SAC">SAC</option>
+                            <option value="Armazém">Armazém</option>
+                            <option value="Recepção">Recepção</option>
+                            <option value="Comexx">Comexx</option>
+                            <option value="Diretoria">Diretoria</option>
+                            <option value="GR">GR</option>
+                            <option value="Frota">Frota</option>
+                            <option value="Motorista">Motorista</option>
+                            <option value="Roteirização">Roteirização</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Cadastrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
