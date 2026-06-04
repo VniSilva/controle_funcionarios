@@ -80,6 +80,14 @@
                                     </form>
                                 {% endif %}
 
+                                {% if item.department_id %}
+                                    <form action="{{ url_for('liberar_equipamento', id=item.id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja liberar este equipamento do setor {{ item.department_owner.name }}?');" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Liberar de Uso Coletivo do Setor">
+                                            <i class="bi bi-box-arrow-right"></i> Setor
+                                        </button>
+                                    </form>
+                                {% endif %}
+
                                 <button type="button" class="btn btn-sm btn-outline-primary text-center" 
                                         style="width: 38px; height: 32px; display: inline-flex; align-items: center; justify-content: center;"
                                         data-bs-toggle="modal" data-bs-target="#editarEquipModal{{ item.id }}" 

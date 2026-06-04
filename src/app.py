@@ -181,28 +181,33 @@ def liberar_equipamento(id):
     try:
         # Descobre quem era o dono anterior ANTES de zerar os campos
         dono_historico = "Disponível (Sem Dono)"
+        acao_movimento = "Liberado do estoque" # Ação padrão de segurança
         
+        # Se estivesse atrelado a uma pessoa física
         if equip.owner:
-            # Como o funcionário está gravado como 'Terminated', ele ainda existe no banco!
             dono_historico = f"Ex-colaborador: {equip.owner.name} (CPF: {equip.owner.cpf})"
+            acao_movimento = "Liberado após desligamento"
+            
+        # Se estivesse atrelado a um setor (Uso Comum / Coletivo)
         elif equip.department_owner:
             dono_historico = f"Uso Comum anterior: {equip.department_owner.name}"
+            acao_movimento = "Liberado de uso coletivo do setor"
 
         # Se o usuário digitou uma observação no modal, concatenamos no histórico
         if descricao_devolucao:
             dono_historico += f" | Obs técnica: {descricao_devolucao}"
 
-        # 1. Grava o movimento perfeitamente no histórico de auditoria
+        # 1. Grava o movimento perfeitamente no histórico de auditoria (Tabela Movement)
         historico = Movement(
             equipment_id=equip.id,
             equipment_model=equip.model,
             serial_number=equip.serial_number,
             previous_user=dono_historico,
-            action="Liberado após desligamento"
+            action=acao_movimento
         )
         db.session.add(historico)
 
-        # 2. Agora sim, limpamos o ativo para que o próximo funcionário possa usar
+        # 2. Agora sim, limpamos o ativo para que o próximo funcionário ou setor possa usar
         equip.inventory_status = 'Available'
         equip.employee_id = None
         equip.department_id = None
