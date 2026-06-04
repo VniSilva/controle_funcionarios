@@ -1,0 +1,4 @@
+*.db
+.env
+uploads
+__pycache__
