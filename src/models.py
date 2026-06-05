@@ -75,6 +75,25 @@ class Document(db.Model):
     
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
 
+class AssignmentHistory(db.Model):
+    __tablename__ = 'assignment_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    equipment_id = db.Column(db.Integer, db.ForeignKey('equipments.id'), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True) # Se for pessoa
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'), nullable=True) # Se for setor (Uso Comum)
+    
+    assigned_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    returned_at = db.Column(db.DateTime, nullable=True) # Fica nulo enquanto o equipamento estiver com ele
+    
+    status = db.Column(db.String(50), default='Active') # Active, Returned, Terminated
+    notes = db.Column(db.Text, nullable=True) # Para a observação técnica ou dados do Termo
+    
+    # Relacionamentos para facilitar a busca no Jinja2/HTML
+    equipment = db.relationship('Equipment', backref='assignments')
+    employee = db.relationship('Employee', backref='assignments')
+    department = db.relationship('Department', backref='assignments')
+
 # 6. Tabela de Histórico de Movimentações (Auditoria Completa)
 class Movement(db.Model):
     __tablename__ = 'movements'
