@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Equipment, Employee, Document, Department, EquipmentImei, EquipmentPhone, Movement
+from models import db, User, Equipment, Employee, Document, Department, EquipmentImei, EquipmentPhone, Movement, AssignmentHistory
 from dotenv import load_dotenv
 from flask import send_from_directory
 from werkzeug.utils import secure_filename
@@ -152,26 +152,56 @@ def novo_item():
     item_type = request.form.get('item_type')
     model = request.form.get('model')
     serial_number = request.form.get('serial_number')
+    
+    # Captura os dados do formulário
+    phone_number = request.form.get('phone_number') if item_type == 'Celular' else None
+    imei = request.form.get('imei') if item_type == 'Celular' else None
 
     # Verifica se o serial já existe
     exists = Equipment.query.filter_by(serial_number=serial_number).first()
     if exists:
-        flash('Erro: Já existe um equipamento com este Número de Série!')
+        flash('Erro: Já existe um equipamento com este Número de Série!', 'danger')
     else:
-        novo = Equipment(
-            item_type=item_type,
-            model=model,
-            serial_number=serial_number,
-            inventory_status='Available'
-        )
-        db.session.add(novo)
-        db.session.commit()
-        flash('Item adicionado ao estoque!')
+        try:
+            # 1. Cria e salva o Equipamento Principal primeiro
+            novo = Equipment(
+                item_type=item_type,
+                model=model,
+                serial_number=serial_number,
+                inventory_status='Available'
+            )
+            db.session.add(novo)
+            
+            # Dá o flush para gerar o ID do equipamento antes de commitar tudo
+            db.session.flush() 
+
+            # 2. Se for Celular e os campos foram preenchidos, vincula os registros extras
+            if item_type == 'Celular':
+                if phone_number and phone_number.strip():
+                    novo_telefone = EquipmentPhone(
+                        phone_number=phone_number.strip(),
+                        equipment_id=novo.id  # Usa o ID recém-gerado
+                    )
+                    db.session.add(novo_telefone)
+
+                if imei and imei.strip():
+                    novo_imei = EquipmentImei(
+                        imei_value=imei.strip(),  # Ajustado para o nome do campo na sua Model (imei_value)
+                        equipment_id=novo.id   # Usa o ID recém-gerado
+                    )
+                    db.session.add(novo_imei)
+
+            # 3. Commita todas as transações juntas com segurança
+            db.session.commit()
+            flash('Item adicionado ao estoque!', 'success')
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao salvar no banco de dados: {str(e)}', 'danger')
     
     return redirect(url_for('estoque'))
 
 # Rota para Liberar Equipamento em Revisão / Desvincular
-# Rota para Liberar Equipamento em Revisão (Apenas na tela de Estoque)
 @app.route('/estoque/liberar/<int:id>', methods=['POST'])
 @login_required
 def liberar_equipamento(id):
@@ -179,44 +209,51 @@ def liberar_equipamento(id):
     descricao_devolucao = request.form.get('descricao_devolucao', '').strip()
     
     try:
-        # Descobre quem era o dono anterior ANTES de zerar os campos
         dono_historico = "Disponível (Sem Dono)"
-        acao_movimento = "Liberado do estoque" # Ação padrão de segurança
+        acao_movimento = "Liberado do estoque"
         
-        # Se estivesse atrelado a uma pessoa física
         if equip.owner:
             dono_historico = f"Ex-colaborador: {equip.owner.name} (CPF: {equip.owner.cpf})"
             acao_movimento = "Liberado após desligamento"
-            
-        # Se estivesse atrelado a um setor (Uso Comum / Coletivo)
         elif equip.department_owner:
             dono_historico = f"Uso Comum anterior: {equip.department_owner.name}"
             acao_movimento = "Liberado de uso coletivo do setor"
 
-        # Se o usuário digitou uma observação no modal, concatenamos no histórico
         if descricao_devolucao:
             dono_historico += f" | Obs técnica: {descricao_devolucao}"
 
-        # 1. Grava o movimento perfeitamente no histórico de auditoria (Tabela Movement)
-        historico = Movement(
+        # -------------------------------------------------------------
+        # REGRA ATUALIZADA: Finaliza o histórico de posse ativo
+        # -------------------------------------------------------------
+        historico_ativo = AssignmentHistory.query.filter_by(
+            equipment_id=equip.id, 
+            returned_at=None
+        ).first()
+        
+        if historico_ativo:
+            historico_ativo.returned_at = datetime.now(timezone.utc)
+            historico_ativo.status = 'Returned'
+            historico_ativo.notes = descricao_devolucao
+        # -------------------------------------------------------------
+
+        # Alimenta a tabela geral de auditoria rápida/Movimentos que você já possui
+        historico_mov = Movement(
             equipment_id=equip.id,
             equipment_model=equip.model,
             serial_number=equip.serial_number,
             previous_user=dono_historico,
             action=acao_movimento
         )
-        db.session.add(historico)
+        db.session.add(historico_mov)
 
-        # 2. Agora sim, limpamos o ativo para que o próximo funcionário ou setor possa usar
+        # Limpa o equipamento para o estoque
         equip.inventory_status = 'Available'
         equip.employee_id = None
         equip.department_id = None
         equip.assignment_date = None
         
-        db.session.flush()
         db.session.commit()
-        
-        flash(f'O equipamento "{equip.model}" foi liberado com sucesso e retornou ao estoque disponível.')
+        flash(f'O equipamento "{equip.model}" foi liberado com sucesso e o histórico de posse foi preservado.')
     except Exception as e:
         db.session.rollback()
         flash(f'Erro ao liberar equipamento: {str(e)}')
@@ -329,6 +366,15 @@ def importar_excel_funcionarios():
                         db.session.add(equip)
                         db.session.flush()
 
+                        historico_posse = AssignmentHistory(
+                            equipment_id=equip.id,
+                            employee_id=funcionario_id, # Se houver
+                            department_id=departamento_id, # Se for uso comum do setor
+                            assigned_at=datetime.now(timezone.utc),
+                            status='Active'
+                        )
+                        db.session.add(historico_posse)
+
                         # Se for celular, alimenta as tabelas complementares
                         if item_type and 'celular' in item_type.lower():
                             if phone_number:
@@ -392,41 +438,69 @@ def novo_departamento():
         
     return redirect(url_for('funcionarios'))
 
-@app.route('/equipamentos/comum/novo', methods=['POST'])
+@app.route('/novo_equipamento_comum', methods=['POST'])
 @login_required
 def novo_equipamento_comum():
-    item_type = request.form.get('item_type', '').strip()
-    model = request.form.get('model', '').strip()
-    serial_number = request.form.get('serial_number', '').strip() or None
+    # Pega o id do equipamento vindo do select de estoque (Função 1)
+    estoque_equipment_id = request.form.get('estoque_equipment_id')
     department_id = request.form.get('department_id')
 
-    if not item_type or not model or not department_id:
-        flash('Erro: Tipo, Modelo e Departamento são obrigatórios.')
+    if not department_id:
+        flash('Por favor, selecione um departamento responsável.', 'danger')
+        return redirect(url_for('funcionarios')) # Ou a rota onde está o seu modal
+
+    # CAMINHO A: O usuário escolheu um equipamento já existente no estoque
+    if estoque_equipment_id:
+        equipment = Equipment.query.get(estoque_equipment_id)
+        
+        if equipment:
+            # Apenas atrela ao setor selecionado
+            equipment.department_id = department_id
+            equipment.inventory_status = "Assigned"
+            
+            # Se você tiver controle de status para saber que é de uso comum, atualize aqui.
+            # Exemplo: equipment.is_common_use = True
+            
+            # (Opcional) Registrar no histórico de movimentações que ele foi para uso comum
+            # nova_movimentacao = Movimentacao(equipment_id=equipment.id, ... )
+            
+            db.session.commit()
+            flash(f'Equipamento {equipment.model} atrelado ao setor com sucesso!', 'success')
+        else:
+            flash('Equipamento selecionado do estoque não foi encontrado.', 'danger')
+            
         return redirect(url_for('funcionarios'))
 
-    # Valida número de série se preenchido
+    # CAMINHO B: Cadastro Manual (Caso o usuário não tenha selecionado nada do estoque)
+    item_type = request.form.get('item_type')
+    model = request.form.get('model')
+    serial_number = request.form.get('serial_number', '').strip() or None
+
+    # Validação de S/N duplicado apenas para novos cadastros
     if serial_number:
-        existente = Equipment.query.filter_by(serial_number=serial_number).first()
-        if existente:
-            flash(f'Erro: Já existe um equipamento cadastrado com o S/N {serial_number}.')
+        existing_equip = Equipment.query.filter_by(serial_number=serial_number).first()
+        if existing_equip:
+            flash(f'Erro: Já existe um equipamento cadastrado com o S/N: {serial_number}!', 'danger')
             return redirect(url_for('funcionarios'))
 
+    # Criação do novo equipamento do zero
+    novo_equipamento = Equipment(
+        item_type=item_type,
+        model=model,
+        serial_number=serial_number,
+        department_id=department_id,
+        # Se for celular manual, pega os dados adicionais (Função 2)
+        phone_number=request.form.get('phone_number') if item_type.lower() == 'celular' else None,
+        imei=request.form.get('imei') if item_type.lower() == 'celular' else None
+    )
+
     try:
-        novo_equip = Equipment(
-            item_type=item_type,
-            model=model,
-            serial_number=serial_number,
-            inventory_status='Assigned', # Fica em uso imediato pelo setor
-            department_id=int(department_id),
-            employee_id=None,
-            assignment_date=datetime.now(timezone.utc)
-        )
-        db.session.add(novo_equip)
+        db.session.add(novo_equipamento)
         db.session.commit()
-        flash('Equipamento de uso comum cadastrado e atrelado ao setor com sucesso!')
+        flash('Novo equipamento comum cadastrado e atrelado ao setor com sucesso!', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Erro ao cadastrar ativo comum: {str(e)}')
+        flash(f'Erro ao salvar no banco de dados: {str(e)}', 'danger')
 
     return redirect(url_for('funcionarios'))
 
