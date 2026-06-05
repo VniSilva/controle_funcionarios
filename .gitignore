@@ -2,3 +2,6 @@
 .env
 uploads
 __pycache__
+*.xlsx
+nssm.exe
+nssm-2.24
