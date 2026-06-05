@@ -6,6 +6,7 @@
 <div>
     <h2><i class="bi bi-people"></i> Gestão de Funcionários</h2>
 </div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="d-flex gap-2">
         <form action="{{ url_for('importar_excel_funcionarios') }}" method="POST" enctype="multipart/form-data" class="d-flex align-items-center border p-1 rounded bg-light">
@@ -19,7 +20,7 @@
             <i class="bi bi-person-plus"></i> Adicionar Funcionário
         </button>
 
-        <div class="d-flex gap-2 mb-3">
+        <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#novoDeptoModal">
                 <i class="bi bi-building-plus"></i> Novo Departamento
             </button>
@@ -30,7 +31,6 @@
     </div>
 </div>
 
-<!-- SISTEMA DE FILTROS POR BOTÃO -->
 <div class="mb-3">
     <div class="btn-group" role="group">
         <a href="{{ url_for('funcionarios', status='Active') }}" 
@@ -44,7 +44,7 @@
     </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm mb-4">
     <div class="card-body p-0">
         <table class="table table-hover mb-0">
             <thead class="table-light">
@@ -58,40 +58,41 @@
             </thead>
             <tbody>
                 {% for func in funcionarios %}
-<tr class="{% if func.status == 'Terminated' %}table-danger text-muted{% endif %}">
-    <td>
-        <strong>{{ func.name }}</strong> 
-        {% if func.status == 'Terminated' %}<span class="badge bg-danger">Desligado</span>{% endif %}
-    </td>
-    <td>{{ func.department.name if func.department else "Sem setor" }}</td>
-    <td>
-        {% for equip in func.equipments %}
-            <span class="badge bg-secondary">{{ equip.item_type }}</span>
-        {% else %}
-            <span class="text-muted small">Nenhum</span>
-        {% endfor %}
-    </td>
-    <td>
-        <!-- Mostra a contagem de termos -->
-        <span class="badge bg-info text-dark"><i class="bi bi-file-earmark-text"></i> {{ func.documents|length }} Termo(s)</span>
-    </td>
-    <td class="text-end">
-        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal{{func.id}}">
-            <i class="bi bi-pencil-square"></i> Detalhes / Editar
-        </button>
-    </td>
-</tr>
-
-<!-- MODAL DE EDIÇÃO ATUALIZADO -->
-<div class="modal fade" id="editModal{{func.id}}" tabindex="-1">
+                <tr class="{% if func.status == 'Terminated' %}table-danger text-muted{% endif %}">
+                    <td>
+                        <strong>{{ func.name }}</strong> 
+                        {% if func.status == 'Terminated' %}<span class="badge bg-danger">Desligado</span>{% endif %}
+                    </td>
+                    <td>{{ func.department.name if func.department else "Sem setor" }}</td>
+                    <td>
+                        {% for equip in func.equipments %}
+                            <span class="badge bg-secondary">{{ equip.item_type }}</span>
+                        {% else %}
+                            <span class="text-muted small">Nenhum</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <span class="badge bg-info text-dark"><i class="bi bi-file-earmark-text"></i> {{ func.documents|length }} Termo(s)</span>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal{{func.id}}">
+                            <i class="bi bi-pencil-square"></i> Detalhes / Editar
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div> {% for func in funcionarios %}
+<div class="modal fade" id="editModal{{func.id}}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
+        <div class="modal-content text-start">
             <div class="modal-header bg-light">
                 <h5 class="modal-title">Detalhes: {{ func.name }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             
-            <!-- FORMULÁRIO PRINCIPAL: EDIÇÃO -->
             <form action="{{ url_for('editar_funcionario', id=func.id) }}" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="row mb-3">
@@ -102,7 +103,6 @@
                     </div>
 
                     <hr>
-                    <!-- SEÇÃO DE DOCUMENTOS -->
                     <h6><i class="bi bi-folder-open"></i> Histórico de Termos de Responsabilidade</h6>
                     <div class="list-group mb-3">
                         {% for doc in func.documents %}
@@ -112,31 +112,85 @@
                                 </div>
                                 <small class="text-muted">Enviado em: {{ doc.upload_date.strftime('%d/%m/%Y') }}</small>
                             </a>
-
                         {% else %}
                             <div class="text-muted small p-2 border rounded bg-light">Nenhum termo anexado ainda.</div>
                         {% endfor %}
                     </div>
+                    
+                    <div class="border-top pt-3 mt-3">
+                        <h5 class="mb-3 text-secondary" style="font-size: 1.1rem;">
+                            <i class="bi bi-clock-history"></i> Histórico de Equipamentos Utilizados
+                        </h5>
+                        
+                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                            <table class="table table-sm table-hover table-bordered align-middle mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Equipamento / Modelo</th>
+                                        <th class="text-center" style="width: 110px;">Retirada</th>
+                                        <th class="text-center" style="width: 110px;">Devolução</th>
+                                        <th class="text-center" style="width: 90px;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if func.assignments %}
+                                        {% for registro in func.assignments %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ registro.equipment.model }}</strong>
+                                                {% if registro.equipment.serial_number %}
+                                                    <br><small class="text-muted">S/N: {{ registro.equipment.serial_number }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                {{ registro.assigned_at.strftime('%d/%m/%Y') if registro.assigned_at else '-' }}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if registro.returned_at %}
+                                                    <span class="text-dark">{{ registro.returned_at.strftime('%d/%m/%Y') }}</span>
+                                                {% else %}
+                                                    <span class="text-muted"><em>Em posse</em></span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if registro.returned_at %}
+                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Devolvido</span>
+                                                {% else %}
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Ativo</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-3">
+                                                <i class="bi bi-info-circle"></i> Nenhum equipamento no histórico.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
                     {% if func.status == 'Active' %}
-                    <!-- FORMULÁRIO PARA ADICIONAR NOVO TERMO -->
+                    <hr>
                     <div class="card p-3 bg-light mb-3">
                         <div class="row">
                             <div class="col-md-6">
-                                <label class="form-label small">Descrição do Termo</label>
+                                <label class="form-label small fw-bold">Descrição do Termo</label>
                                 <input type="text" name="desc_termo" class="form-control form-control-sm" placeholder="Ex: Termo Celular Samsung">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small">Upload de Novo Termo</label>
+                                <label class="form-label small fw-bold">Upload de Novo Termo</label>
                                 <input type="file" name="termo" class="form-control form-control-sm">
                             </div>
                         </div>
                     </div>
 
-                    <hr>
                     <h6>Atribuir Novo Equipamento</h6>
                     <div class="mb-3">
-                        <select name="equipamento_id" class="form-select">
+                        <select name="equipment_id" class="form-select">
                             <option value="">-- Selecione um item do estoque disponível --</option>
                             {% for eq_livre in equipamentos_livres %}
                                 <option value="{{ eq_livre.id }}">{{ eq_livre.item_type }} - {{ eq_livre.model }} (S/N: {{ eq_livre.serial_number }})</option>
@@ -145,11 +199,11 @@
                     </div>
                     {% endif %}
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold"><i class="bi bi-laptop"></i> Equipamentos Atribuídos</label>
+                    <div class="mt-3">
+                        <label class="form-label fw-bold"><i class="bi bi-laptop"></i> Equipamentos Atuais em Posse</label>
                         <ul class="list-group">
                             {% for equip in func.equipments %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                                     <div>
                                         <span class="badge bg-secondary text-uppercase me-2">{{ equip.item_type }}</span>
                                         <strong>{{ equip.model }}</strong> 
@@ -163,63 +217,54 @@
                                             formmethod="POST"
                                             class="btn btn-sm btn-link text-danger p-0 border-0" 
                                             onclick="return confirm('Tem certeza que deseja retirar o equipamento {{ equip.model }} deste funcionário?')"
-                                            data-bs-toggle="tooltip" 
-                                            data-bs-placement="top" 
                                             title="Liberar equipamento">
                                         <i class="bi bi-x-circle fs-5"></i>
                                     </button>
                                 </li>
                             {% else %}
-                                <li class="list-group-item text-muted italic small text-center py-3">
-                                    Nenhum equipamento vinculado a este colaborador.
+                                <li class="list-group-item text-muted text-center py-2 small">
+                                    Nenhum equipamento vinculado atualmente.
                                 </li>
                             {% endfor %}
                         </ul>
                     </div>
                 </div>
                 
-                <div class="modal-footer d-flex justify-content-between">
-                    <div class="modal-footer d-flex justify-content-between">
-                        <div>
-                            {% if func.status == 'Active' %}
-                                <button type="submit" form="formDesligar{{func.id}}" class="btn btn-danger" onclick="return confirm('...')">
-                                    <i class="bi bi-person-x"></i> Registrar Desligamento
-                                </button>
-                                
-                                <a href="{{ url_for('gerar_pdf_funcionario', id=func.id) }}" target="_blank" class="btn btn-warning text-dark fw-bold">
-                                    <i class="bi bi-file-earmark-pdf"></i> Emitir Termo PDF
-                                </a>
-                            {% endif %}
-                        </div>
-                        <div>
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                            {% if func.status == 'Active' %}
-                                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                            {% endif %}
-                        </div>
+                <div class="modal-footer d-flex justify-content-between bg-light">
+                    <div>
+                        {% if func.status == 'Active' %}
+                            <button type="submit" form="formDesligar{{func.id}}" class="btn btn-danger" onclick="return confirm('Confirmar desligamento do funcionário?')">
+                                <i class="bi bi-person-x"></i> Registrar Desligamento
+                            </button>
+                            
+                            <a href="{{ url_for('gerar_pdf_funcionario', id=func.id) }}" target="_blank" class="btn btn-warning text-dark fw-bold">
+                                <i class="bi bi-file-earmark-pdf"></i> Emitir Termo PDF
+                            </a>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        {% if func.status == 'Active' %}
+                            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                        {% endif %}
                     </div>
                 </div>
-            </form> <!-- Fim do Form de Edição -->
-
-            <!-- FORMULÁRIO INVISÍVEL MUDADO PARA FORA DO FORM DE EDIÇÃO -->
+            </form> 
+            
             <form id="formDesligar{{func.id}}" action="{{ url_for('desligar_funcionario', id=func.id) }}" method="POST" style="display: none;"></form>
-
         </div>
     </div>
 </div>
 {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
 
-<div class="modal fade" id="novoDeptoModal" tabindex="-1" aria-labelledby="novoDeptoModalLabel" aria-hidden="true">
+
+<div class="modal fade" id="novoDeptoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('novo_departamento') }}" method="POST">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="novoDeptoModalLabel"><i class="bi bi-building"></i> Cadastrar Novo Setor</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title"><i class="bi bi-building"></i> Cadastrar Novo Setor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -236,16 +281,16 @@
     </div>
 </div>
 
-<div class="modal fade" id="novoEquipComumModal" tabindex="-1" aria-labelledby="novoEquipComumModalLabel" aria-hidden="true">
+<div class="modal fade" id="novoEquipComumModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('novo_equipamento_comum') }}" method="POST">
                 <div class="modal-header bg-secondary text-white">
-                    <h5 class="modal-title" id="novoEquipComumModalLabel"><i class="bi bi-pc-display-horizontal"></i> Equipamento de Uso Comum</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title"><i class="bi bi-pc-display-horizontal"></i> Equipamento de Uso Comum</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="alert alert-info py-2">
+                    <div class="alert alert-info py-2 mb-3">
                         <small><i class="bi bi-info-circle"></i> Este equipamento ficará retido para uso geral do setor, sem vínculo com CPF específico.</small>
                     </div>
                     
@@ -259,20 +304,52 @@
                         </select>
                     </div>
 
+                    <div class="mb-3 p-2 border rounded bg-light">
+                        <label class="form-label fw-bold text-primary"><i class="bi bi-database-fill-check"></i> Puxar do Estoque Existente (Opcional)</label>
+                        <select class="form-select form-select-sm" id="selectEstoqueComum" name="estoque_equipment_id">
+                            <option value="">-- Criar manualmente / Não puxar do estoque --</option>
+                            {% for eq_livre in equipamentos_livres %}
+                                <option value="{{ eq_livre.id }}" data-type="{{ eq_livre.item_type }}" data-model="{{ eq_livre.model }}" data-serial="{{ eq_livre.serial_number }}">
+                                    {{ eq_livre.item_type }} - {{ eq_livre.model }} {% if eq_livre.serial_number %}(S/N: {{ eq_livre.serial_number }}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">Selecionar um item desabilita o cadastro manual abaixo.</div>
+                    </div>
+
+                    <hr>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tipo de Item</label>
-                        <input type="text" class="form-control" name="item_type" placeholder="Ex: Impressora, Computador, TV" required>
+                        <input type="text" class="form-control" id="inputItemType" name="item_type" placeholder="Ex: Impressora, Computador, TV" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Modelo</label>
-                        <input type="text" class="form-control" name="model" placeholder="Ex: Zebra ZD220 / Dell OptiPlex" required>
+                        <input type="text" class="form-control" id="inputModel" name="model" placeholder="Ex: Zebra ZD220 / Dell OptiPlex" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Número de Série (S/N)</label>
-                        <input type="text" class="form-control" name="serial_number" placeholder="Opcional">
+                        <input type="text" class="form-control" id="inputSerial" name="serial_number" placeholder="Opcional">
                     </div>
+
+                    <div id="camposCelularComum" style="display: none;">
+                        <div class="card p-3 bg-warning-subtle border-warning mb-3">
+                            <h6 class="text-warning-emphasis fw-bold mb-2"><i class="bi bi-telephone"></i> Detalhes da Linha Móvel</h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label small fw-bold">Número do Telefone</label>
+                                    <input type="text" class="form-control form-control-sm" name="phone_number" placeholder="(11) 99999-9999">
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label small fw-bold">IMEI</label>
+                                    <input type="text" class="form-control form-control-sm" name="imei" placeholder="Ex: 352500...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -283,8 +360,98 @@
     </div>
 </div>
 
-<!-- Modal Novo Funcionário -->
-<div class="modal fade" id="novoFuncModal" tabindex="-1">
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const selectEstoque = document.getElementById("selectEstoqueComum");
+    const inputType = document.getElementById("inputItemType");
+    const inputModel = document.getElementById("inputModel");
+    const inputSerial = document.getElementById("inputSerial");
+    const containerCelular = document.getElementById("camposCelularComum");
+    
+    // Inputs específicos de celular
+    const inputPhone = containerCelular.querySelector("input[name='phone_number']");
+    const inputImei = containerCelular.querySelector("input[name='imei']");
+
+    // Função auxiliar para verificar se o tipo é celular e exibir os campos extras
+    function verificarSeEhCelular(valorTipo) {
+        if (valorTipo && valorTipo.toLowerCase().trim() === "celular") {
+            containerCelular.style.display = "block";
+        } else {
+            containerCelular.style.display = "none";
+            inputPhone.value = "";
+            inputImei.value = "";
+            inputPhone.disabled = false;
+            inputImei.disabled = false;
+        }
+    }
+
+    // Monitora a seleção do estoque existente
+    selectEstoque.addEventListener("change", function () {
+        const optionSelecionada = this.options[this.selectedIndex];
+        
+        if (this.value !== "") {
+            // Pega os metadados inseridos nos atributos 'data-' da option
+            const tipo = optionSelecionada.getAttribute("data-type");
+            const modelo = optionSelecionada.getAttribute("data-model");
+            const serial = optionSelecionada.getAttribute("data-serial") || "";
+            const telefone = optionSelecionada.getAttribute("data-phone") || "";
+            const imei = optionSelecionada.getAttribute("data-imei") || "";
+
+            // Preenche e desabilita os inputs de texto principais
+            inputType.value = tipo;
+            inputModel.value = modelo;
+            inputSerial.value = serial;
+
+            inputType.disabled = true;
+            inputModel.disabled = true;
+            inputSerial.disabled = true;
+
+            // Valida a exibição do bloco celular baseado no item do estoque
+            verificarSeEhCelular(tipo);
+
+            // Se for celular, preenche os dados específicos e também bloqueia
+            if (tipo.toLowerCase().trim() === "celular") {
+                inputPhone.value = telefone;
+                inputImei.value = imei;
+                
+                inputPhone.disabled = true;
+                inputImei.disabled = true;
+            }
+        } else {
+            // Se voltou para a opção vazia, limpa tudo e reativa todos os campos
+            inputType.value = "";
+            inputModel.value = "";
+            inputSerial.value = "";
+            inputPhone.value = "";
+            inputImei.value = "";
+
+            inputType.disabled = false;
+            inputModel.disabled = false;
+            inputSerial.disabled = false;
+            inputPhone.disabled = false;
+            inputImei.disabled = false;
+
+            verificarSeEhCelular("");
+        }
+    });
+
+    // Monitora caso o usuário digite manualmente no input de tipo
+    inputType.addEventListener("input", function () {
+        verificarSeEhCelular(this.value);
+    });
+
+    // Garante que no envio do formulário, os campos disabled sejam liberados para o Flask receber os dados
+    selectEstoque.closest("form").addEventListener("submit", function() {
+        inputType.disabled = false;
+        inputModel.disabled = false;
+        inputSerial.disabled = false;
+        inputPhone.disabled = false;
+        inputImei.disabled = false;
+    });
+});
+</script>
+
+<div class="modal fade" id="novoFuncModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('novo_funcionario') }}" method="POST">
@@ -328,6 +495,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                     <button type="submit" class="btn btn-success">Cadastrar</button>
                 </div>
             </form>
