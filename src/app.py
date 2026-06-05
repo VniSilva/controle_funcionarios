@@ -334,7 +334,7 @@ def importar_excel_funcionarios():
                     
                     if not func:
                         func = Employee(
-                            name=name,
+                            name=name.upper(),
                             cpf=cpf if cpf else f"SEM_CPF_{sucesso}_{datetime.now().microsecond}",
                             status=status if status else 'Active',
                             department_id=departamento_id
@@ -615,7 +615,7 @@ def novo_funcionario():
     email = request.form.get('email')
     depto = request.form.get('department')
     
-    novo = Employee(name=nome, cpf=cpf, email=email, department=depto)
+    novo = Employee(name=nome.upper(), cpf=cpf, email=email, department=depto)
     db.session.add(novo)
     db.session.commit()
     flash('Funcionário cadastrado!')
@@ -807,12 +807,13 @@ def editar_funcionario(id):
             db.session.add(novo_documento)
 
     # Vincular Equipamento
-    eq_id = request.form.get('equipamento_id')
-    if eq_id:
+    eq_id = request.form.get('equipment_id')
+    if eq_id and eq_id.strip():
         equip = Equipment.query.get(eq_id)
-        equip.employee_id = func.id
-        equip.inventory_status = 'Assigned'
-        equip.assignment_date = datetime.now(timezone.utc)
+        if equip:
+            equip.employee_id = func.id
+            equip.inventory_status = 'Assigned'
+            equip.assignment_date = datetime.now(timezone.utc)
 
     db.session.commit()
     flash('Cadastro atualizado com sucesso!')
